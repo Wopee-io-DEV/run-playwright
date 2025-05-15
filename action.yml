@@ -37,21 +37,21 @@ runs:
       run: echo "WOPEE_SUITE_NAME=Testing-$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
 
     - name: Run tests
-      env:
-        # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # WOPEE_API_KEY: ${{ secrets.WOPEE_API_KEY }}
-        # WOPEE_API_URL: ${{ vars.WOPEE_API_URL || 'https://api.wopee.io' }}
-        # WOPEE_PROJECT_UUID: ${{ vars.WOPEE_PROJECT_UUID }}
-        # WOPEE_PROJECT_URL: ${{ vars.WOPEE_PROJECT_URL || 'https://dronjo.wopee.io' }}
-        # WOPEE_SCREENSHOT_VALIDATION_ENABLED: "true"
-        # WOPEE_BRANCH_NAME: master
-        # WOPEE_CI_BUILD_ID: build-123
-        # WOPEE_CUSTOM_TAGS: custom-tag
-        # WOPEE_ENABLE_SOFT_ASSERT: "true"
-        # WOPEE_PIXEL_TO_PIXEL_DIFF_TOLERANCE: "0.1"
-        # WOPEE_COLLECT_PAGE_CONTENT: "true"
-        # BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
-        # BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
+      # env:
+      #   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   WOPEE_API_KEY: ${{ secrets.WOPEE_API_KEY }}
+      #   WOPEE_API_URL: ${{ vars.WOPEE_API_URL || 'https://api.wopee.io' }}
+      #   WOPEE_PROJECT_UUID: ${{ vars.WOPEE_PROJECT_UUID }}
+      #   WOPEE_PROJECT_URL: ${{ vars.WOPEE_PROJECT_URL || 'https://dronjo.wopee.io' }}
+      #   WOPEE_SCREENSHOT_VALIDATION_ENABLED: "true"
+      #   WOPEE_BRANCH_NAME: master
+      #   WOPEE_CI_BUILD_ID: build-123
+      #   WOPEE_CUSTOM_TAGS: custom-tag
+      #   WOPEE_ENABLE_SOFT_ASSERT: "true"
+      #   WOPEE_PIXEL_TO_PIXEL_DIFF_TOLERANCE: "0.1"
+      #   WOPEE_COLLECT_PAGE_CONTENT: "true"
+      #   BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
+      #   BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
       shell: bash
       run: |
         npm install --prefer-offline --no-audit
