@@ -1,0 +1,69 @@
+name: 'Run Playwright tests'
+description: 'Runs Playwright tests via npm run test'
+branding:
+  icon: 'fast-forward'
+  color: 'purple'
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v4
+
+    - name: Receive code
+      if: github.event_name == 'repository_dispatch' && github.event.client_payload.code != null
+      shell: bash
+      run: |
+        rm -rf tests/*
+        echo "${{ github.event.client_payload.code }}" | base64 --decode > tests/code.spec.ts
+
+    - name: Set suite name if provided
+      if: github.event_name == 'repository_dispatch' && github.event.client_payload.suite_name != null
+      shell: bash
+      run: |
+        echo 'WOPEE_SUITE_NAME=${{ github.event.client_payload.suite_name }}' >> $GITHUB_ENV
+
+    - name: Set WOPEE_TEST_USERNAME
+      if: github.event.client_payload.suiteAnalysisConfig != null && github.event.client_payload.suiteAnalysisConfig.username != null
+      shell: bash
+      run: export WOPEE_TEST_USERNAME="${{ github.event.client_payload.suiteAnalysisConfig.username }}"
+
+    - name: Set WOPEE_TEST_PASSWORD
+      if: github.event.client_payload.suiteAnalysisConfig != null && github.event.client_payload.suiteAnalysisConfig.password != null
+      shell: bash
+      run: export WOPEE_TEST_PASSWORD="${{ github.event.client_payload.suiteAnalysisConfig.password }}"
+
+    - name: Generate WOPEE_SUITE_NAME
+      shell: bash
+      run: echo "WOPEE_SUITE_NAME=Testing-$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+
+    - name: Run tests
+      env:
+        # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # WOPEE_API_KEY: ${{ secrets.WOPEE_API_KEY }}
+        # WOPEE_API_URL: ${{ vars.WOPEE_API_URL || 'https://api.wopee.io' }}
+        # WOPEE_PROJECT_UUID: ${{ vars.WOPEE_PROJECT_UUID }}
+        # WOPEE_PROJECT_URL: ${{ vars.WOPEE_PROJECT_URL || 'https://dronjo.wopee.io' }}
+        # WOPEE_SCREENSHOT_VALIDATION_ENABLED: "true"
+        # WOPEE_BRANCH_NAME: master
+        # WOPEE_CI_BUILD_ID: build-123
+        # WOPEE_CUSTOM_TAGS: custom-tag
+        # WOPEE_ENABLE_SOFT_ASSERT: "true"
+        # WOPEE_PIXEL_TO_PIXEL_DIFF_TOLERANCE: "0.1"
+        # WOPEE_COLLECT_PAGE_CONTENT: "true"
+        # BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
+        # BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
+      shell: bash
+      run: |
+        npm install --prefer-offline --no-audit
+        npx playwright install ffmpeg
+        npm run test
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-results
+        path: |
+          test-results
+          playwright-report
+        retention-days: 1
