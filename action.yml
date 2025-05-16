@@ -28,15 +28,29 @@ runs:
       run: |
         echo 'WOPEE_SUITE_UUID=${{ github.event.client_payload.suite.uuid }}' >> $GITHUB_ENV
 
-    - name: Set WOPEE_TEST_USERNAME
+    - name: Set test case id if provided
+      if: github.event_name == 'repository_dispatch' && github.event.client_payload.testCase.testCaseId != null
+      shell: bash
+      run: |
+        echo "WOPEE_TEST_CASE_ID=${{ github.event.client_payload.testCase.testCaseId }}" >> $GITHUB_ENV
+
+    - name: Set user story id if provided
+      if: github.event_name == 'repository_dispatch' && github.event.client_payload.testCase.userStoryId != null
+      shell: bash
+      run: |
+        echo "WOPEE_USER_STORY_ID=${{ github.event.client_payload.testCase.userStoryId }}" >> $GITHUB_ENV
+
+    - name: Set TESTING_USERNAME
       if: github.event.client_payload.suiteAnalysisConfig != null && github.event.client_payload.suiteAnalysisConfig.username != null
       shell: bash
-      run: export WOPEE_TEST_USERNAME="${{ github.event.client_payload.suiteAnalysisConfig.username }}"
+      run: |
+        echo "TESTING_USERNAME=${{ github.event.client_payload.suiteAnalysisConfig.username }}" >> $GITHUB_ENV
 
-    - name: Set WOPEE_TEST_PASSWORD
+    - name: Set TESTING__PASSWORD
       if: github.event.client_payload.suiteAnalysisConfig != null && github.event.client_payload.suiteAnalysisConfig.password != null
       shell: bash
-      run: export WOPEE_TEST_PASSWORD="${{ github.event.client_payload.suiteAnalysisConfig.password }}"
+      run: |
+        echo "TESTING__PASSWORD=${{ github.event.client_payload.suiteAnalysisConfig.password }}" >> $GITHUB_ENV
 
     - name: Generate WOPEE_SUITE_NAME if not set
       if: env.WOPEE_SUITE_NAME
@@ -65,6 +79,43 @@ runs:
         npx playwright install ffmpeg
         npm run test
 
+    - name: Confirm end of run
+      if: always()
+      shell: bash
+      run: |
+
+        ERROR_FLAG=false
+        if [ "${{ job.status }}" = "failure" ]; then
+          ERROR_FLAG=true
+        fi
+
+        if [ "${{ github.event.action }}" = "code" ]; then
+
+          JSON_PAYLOAD=$(cat <<-EOF
+          {
+            "query": "mutation PostProcessAgentSuite(\$input: PostProcessAgentSuiteInput!) { postProcessAgentSuite(input: \$input) }",
+            "variables": {
+              "input": {
+                "error": $ERROR_FLAG,
+                "projectUuid": "${{ env.WOPEE_PROJECT_UUID }}",
+                "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}",
+                "testCase": {
+                  "testCaseId": "${{ env.WOPEE_TEST_CASE_ID }}",
+                  "userStoryId": "${{ env.WOPEE_USER_STORY_ID }}"
+                }
+              }
+            }
+          }
+        EOF
+          )
+        fi
+
+        curl --request POST \
+          --header 'content-type: application/json' \
+          --header 'api_key: ${{ env.WOPEE_API_KEY }}' \
+          --url '${{ env.WOPEE_API_URL }}' \
+          --data "$JSON_PAYLOAD"
+          
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v4
