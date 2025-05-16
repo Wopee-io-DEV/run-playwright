@@ -22,6 +22,12 @@ runs:
       run: |
         echo 'WOPEE_SUITE_NAME=${{ github.event.client_payload.suite_name }}' >> $GITHUB_ENV
 
+    - name: Set suite uuid if provided
+      if: github.event_name == 'repository_dispatch' && github.event.client_payload.suite_uuid != null
+      shell: bash
+      run: |
+        echo 'WOPEE_SUITE_UUID=${{ github.event.client_payload.suite.uuid }}' >> $GITHUB_ENV
+
     - name: Set WOPEE_TEST_USERNAME
       if: github.event.client_payload.suiteAnalysisConfig != null && github.event.client_payload.suiteAnalysisConfig.username != null
       shell: bash
