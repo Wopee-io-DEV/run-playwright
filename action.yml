@@ -20,10 +20,10 @@ runs:
       if: github.event_name == 'repository_dispatch' && github.event.client_payload.suite_name != null
       shell: bash
       run: |
-        echo 'WOPEE_SUITE_NAME=${{ github.event.client_payload.suite_name }}' >> $GITHUB_ENV
+        echo 'WOPEE_SUITE_NAME=${{ github.event.client_payload.suite.name }}' >> $GITHUB_ENV
 
     - name: Set suite uuid if provided
-      if: github.event_name == 'repository_dispatch' && github.event.client_payload.suite_uuid != null
+      if: github.event_name == 'repository_dispatch' && github.event.client_payload.suite.uuid != null
       shell: bash
       run: |
         echo 'WOPEE_SUITE_UUID=${{ github.event.client_payload.suite.uuid }}' >> $GITHUB_ENV
@@ -38,7 +38,8 @@ runs:
       shell: bash
       run: export WOPEE_TEST_PASSWORD="${{ github.event.client_payload.suiteAnalysisConfig.password }}"
 
-    - name: Generate WOPEE_SUITE_NAME
+    - name: Generate WOPEE_SUITE_NAME if not set
+      if: env.WOPEE_SUITE_NAME
       shell: bash
       run: echo "WOPEE_SUITE_NAME=Testing-$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
 
