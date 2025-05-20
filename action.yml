@@ -76,6 +76,7 @@ runs:
       shell: bash
       run: |
         npm install --prefer-offline --no-audit
+        npx playwright install
         npx playwright install ffmpeg
         npm run test
 
