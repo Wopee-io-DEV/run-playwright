@@ -9,6 +9,27 @@ runs:
   steps:
     - uses: actions/checkout@v4
 
+    - name: Load .github/workflows/.env → $GITHUB_ENV
+      shell: bash
+      run: |
+        if [ -f .github/workflows/.env ]; then
+          grep -vE '^(#|$)' .github/workflows/.env \
+            | grep -E '^[A-Za-z_][A-Za-z0-9_]*=' \
+            >> "$GITHUB_ENV"
+        fi
+    
+    - name: set WOPEE_SCREENSHOT_VALIDATION_ENABLED if not set as env variable
+      if: env.WOPEE_SCREENSHOT_VALIDATION_ENABLED == null
+      shell: bash
+      run: |
+        echo 'WOPEE_SCREENSHOT_VALIDATION_ENABLED=true' >> $GITHUB_ENV
+    
+    - name: set WOPEE_COLLECT_PAGE_CONTENT if not set as env variable
+      if: env.WOPEE_COLLECT_PAGE_CONTENT == null
+      shell: bash
+      run: |
+        echo 'WOPEE_COLLECT_PAGE_CONTENT=true' >> $GITHUB_ENV
+
     - name: Receive code
       if: github.event_name == 'repository_dispatch' && github.event.client_payload.code != null
       shell: bash
