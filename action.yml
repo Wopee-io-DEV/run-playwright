@@ -9,6 +9,18 @@ runs:
   steps:
     - uses: actions/checkout@v4
 
+    - name: Set default values for environment variables
+      shell: bash
+      run: |
+        echo "WOPEE_SCREENSHOT_VALIDATION_ENABLED=${{ env.WOPEE_SCREENSHOT_VALIDATION_ENABLED || "true" }}" >> $GITHUB_ENV
+        echo "WOPEE_COLLECT_PAGE_CONTENT=${{ env.WOPEE_COLLECT_PAGE_CONTENT || "true" }}" >> $GITHUB_ENV
+
+    - name: Load client_payload.env → $GITHUB_ENV
+      if: github.event.client_payload.env
+      shell: bash
+      run: |
+        jq -r 'to_entries[]|"\(.key)=\(.value)"' <<< '${{ toJson(github.event.client_payload.env) }}' >> "$GITHUB_ENV"
+
     - name: Load .github/workflows/.env → $GITHUB_ENV
       shell: bash
       run: |
@@ -17,18 +29,6 @@ runs:
             | grep -E '^[A-Za-z_][A-Za-z0-9_]*=' \
             >> "$GITHUB_ENV"
         fi
-    
-    - name: set WOPEE_SCREENSHOT_VALIDATION_ENABLED if not set as env variable
-      if: env.WOPEE_SCREENSHOT_VALIDATION_ENABLED == null
-      shell: bash
-      run: |
-        echo 'WOPEE_SCREENSHOT_VALIDATION_ENABLED=true' >> $GITHUB_ENV
-    
-    - name: set WOPEE_COLLECT_PAGE_CONTENT if not set as env variable
-      if: env.WOPEE_COLLECT_PAGE_CONTENT == null
-      shell: bash
-      run: |
-        echo 'WOPEE_COLLECT_PAGE_CONTENT=true' >> $GITHUB_ENV
 
     - name: Receive code
       if: github.event_name == 'repository_dispatch' && github.event.client_payload.code != null
