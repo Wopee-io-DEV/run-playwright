@@ -116,11 +116,9 @@ runs:
       run: |
         JSON_PAYLOAD=$(cat <<-EOF
         {
-          "query": "mutation PostProcessSuite(\$input: PostProcessSuiteInput!) { postProcessSuite(input: \$input) }",
-          "variables": {
-            "input": {
-              "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}"
-            }
+          "query": "mutation PostProcessSuite(\$suiteUuid: ID!) { postProcessSuite(suiteUuid: \$suiteUuid)}",
+          "variables":{
+            "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}"
           }
         }
         EOF
