@@ -144,12 +144,10 @@ runs:
 
           JSON_PAYLOAD=$(cat <<-EOF
           {
-            "query": "mutation StopIntegrationSuite(\$input: StopIntegrationSuiteInput!) { stopIntegrationSuite(input: \$input) }",
+            "query": "mutation StopIntegrationSuite(\$suiteUuid: ID!, \$forceStop: Boolean) { stopIntegrationSuite(suiteUuid: \$suiteUuid, forceStop: \$forceStop) { runningStatus }}",
             "variables": {
-              "input": {
-                "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}",
-                "forceStop": "true"
-              }
+              "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}",
+              "forceStop": "true"
             }
           }
         EOF
