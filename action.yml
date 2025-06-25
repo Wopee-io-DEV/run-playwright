@@ -121,6 +121,7 @@ runs:
         fi
 
         if [ "${{ github.event.action }}" = "code" ]; then
+
           JSON_PAYLOAD=$(cat <<-EOF
           {
             "query": "mutation PostProcessAgentSuite(\$input: PostProcessAgentSuiteInput!) { postProcessAgentSuite(input: \$input) }",
@@ -136,21 +137,24 @@ runs:
               }
             }
           }
-          EOF
+        EOF
           )
+
         else
+
           JSON_PAYLOAD=$(cat <<-EOF
           {
             "query": "mutation StopIntegrationSuite(\$input: StopIntegrationSuiteInput!) { stopIntegrationSuite(input: \$input) }",
             "variables": {
               "input": {
                 "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}",
-                "forceStop": true
+                "forceStop": "true"
               }
             }
           }
-          EOF
+        EOF
           )
+
         fi
 
         curl --request POST \
