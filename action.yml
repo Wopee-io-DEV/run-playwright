@@ -114,15 +114,44 @@ runs:
       if: always()
       shell: bash
       run: |
-        JSON_PAYLOAD=$(cat <<-EOF
-        {
-          "query": "mutation PostProcessSuite(\$suiteUuid: ID!) { postProcessSuite(suiteUuid: \$suiteUuid)}",
-          "variables":{
-            "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}"
+
+        ERROR_FLAG=false
+        if [ "${{ job.status }}" = "failure" ]; then
+          ERROR_FLAG=true
+        fi
+
+        if [ "${{ github.event.action }}" = "code" ]; then
+          JSON_PAYLOAD=$(cat <<-EOF
+          {
+            "query": "mutation PostProcessAgentSuite(\$input: PostProcessAgentSuiteInput!) { postProcessAgentSuite(input: \$input) }",
+            "variables": {
+              "input": {
+                "error": $ERROR_FLAG,
+                "projectUuid": "${{ env.WOPEE_PROJECT_UUID }}",
+                "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}",
+                "testCase": {
+                  "testCaseId": "${{ env.WOPEE_TEST_CASE_ID }}",
+                  "userStoryId": "${{ env.WOPEE_USER_STORY_ID }}"
+                }
+              }
+            }
           }
-        }
-        EOF
-        )
+          EOF
+          )
+        else
+          JSON_PAYLOAD=$(cat <<-EOF
+          {
+            "query": "mutation StopIntegrationSuite(\$input: StopIntegrationSuiteInput!) { stopIntegrationSuite(input: \$input) }",
+            "variables": {
+              "input": {
+                "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}",
+                "forceStop": true
+              }
+            }
+          }
+          EOF
+          )
+        fi
 
         curl --request POST \
           --header 'content-type: application/json' \
