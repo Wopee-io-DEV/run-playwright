@@ -147,7 +147,7 @@ runs:
             "query": "mutation StopIntegrationSuite(\$suiteUuid: ID!, \$forceStop: Boolean) { stopIntegrationSuite(suiteUuid: \$suiteUuid, forceStop: \$forceStop) { runningStatus }}",
             "variables": {
               "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}",
-              "forceStop": "true"
+              "forceStop": true
             }
           }
         EOF
