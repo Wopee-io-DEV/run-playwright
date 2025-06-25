@@ -1,8 +1,8 @@
-name: 'Run Playwright tests'
-description: 'Runs Playwright tests via npm run test'
+name: "Run Playwright tests"
+description: "Runs Playwright tests via npm run test"
 branding:
-  icon: 'fast-forward'
-  color: 'purple'
+  icon: "fast-forward"
+  color: "purple"
 
 runs:
   using: "composite"
@@ -114,39 +114,24 @@ runs:
       if: always()
       shell: bash
       run: |
-
-        ERROR_FLAG=false
-        if [ "${{ job.status }}" = "failure" ]; then
-          ERROR_FLAG=true
-        fi
-
-        if [ "${{ github.event.action }}" = "code" ]; then
-
-          JSON_PAYLOAD=$(cat <<-EOF
-          {
-            "query": "mutation PostProcessAgentSuite(\$input: PostProcessAgentSuiteInput!) { postProcessAgentSuite(input: \$input) }",
-            "variables": {
-              "input": {
-                "error": $ERROR_FLAG,
-                "projectUuid": "${{ env.WOPEE_PROJECT_UUID }}",
-                "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}",
-                "testCase": {
-                  "testCaseId": "${{ env.WOPEE_TEST_CASE_ID }}",
-                  "userStoryId": "${{ env.WOPEE_USER_STORY_ID }}"
-                }
-              }
+        JSON_PAYLOAD=$(cat <<-EOF
+        {
+          "query": "mutation PostProcessSuite(\$input: PostProcessSuiteInput!) { postProcessSuite(input: \$input) }",
+          "variables": {
+            "input": {
+              "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}"
             }
           }
+        }
         EOF
-          )
-        fi
+        )
 
         curl --request POST \
           --header 'content-type: application/json' \
           --header 'api_key: ${{ env.WOPEE_API_KEY }}' \
           --url '${{ env.WOPEE_API_URL }}' \
           --data "$JSON_PAYLOAD"
-          
+
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v4
