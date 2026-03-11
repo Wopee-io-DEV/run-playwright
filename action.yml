@@ -138,7 +138,7 @@ runs:
                 "error": $ERROR_FLAG,
                 "projectUuid": "${{ env.WOPEE_PROJECT_UUID }}",
                 "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}",
-                "identifier": "$IDENTIFIER",
+                "identifier": "$IDENTIFIER"
               }
             }
           }
