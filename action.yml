@@ -136,8 +136,8 @@ runs:
             "variables": {
               "input": {
                 "error": $ERROR_FLAG,
-                "projectUuid": "${{ env.WOPEE_PROJECT_UUID }}",
-                "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}",
+                "projectUuid": "${WOPEE_PROJECT_UUID}",
+                "suiteUuid": "${WOPEE_SUITE_UUID}",
                 "identifier": "$IDENTIFIER"
               }
             }
@@ -147,11 +147,19 @@ runs:
 
         else
 
+          # Plain "run" dispatches carry no suite uuid — the suite is created inside the test
+          # process and stopped by the wopee reporter. Posting a stop with an empty uuid can
+          # only fail (see backlog#4128).
+          if [ -z "${WOPEE_SUITE_UUID:-}" ]; then
+            echo "No WOPEE_SUITE_UUID - skipping stopIntegrationSuite (suite is stopped by the wopee reporter or lazily by the API)"
+            exit 0
+          fi
+
           JSON_PAYLOAD=$(cat <<-EOF
           {
             "query": "mutation StopIntegrationSuite(\$suiteUuid: ID!, \$forceStop: Boolean) { stopIntegrationSuite(suiteUuid: \$suiteUuid, forceStop: \$forceStop) { runningStatus }}",
             "variables": {
-              "suiteUuid": "${{ env.WOPEE_SUITE_UUID }}",
+              "suiteUuid": "${WOPEE_SUITE_UUID}",
               "forceStop": true
             }
           }
@@ -162,8 +170,8 @@ runs:
 
         curl --request POST \
           --header 'content-type: application/json' \
-          --header 'api_key: ${{ env.WOPEE_API_KEY }}' \
-          --url '${{ env.WOPEE_API_URL }}' \
+          --header "api_key: ${WOPEE_API_KEY}" \
+          --url "${WOPEE_API_URL}" \
           --data "$JSON_PAYLOAD"
 
     - name: Upload test results
