@@ -47,7 +47,10 @@ runs:
         echo "${{ github.event.client_payload.code }}" | base64 --decode > tests/code.spec.ts
 
     - name: Set suite name if provided
-      if: github.event_name == 'repository_dispatch' && github.event.client_payload.suite_name != null
+      # The dispatch payload carries suite.name (see the assignment below and run-agent);
+      # this condition used to test a nonexistent client_payload.suite_name key, so a
+      # provided suite name was silently ignored and the generated fallback name won.
+      if: github.event_name == 'repository_dispatch' && github.event.client_payload.suite.name != null
       shell: bash
       run: |
         echo 'WOPEE_SUITE_NAME=${{ github.event.client_payload.suite.name }}' >> $GITHUB_ENV
@@ -103,12 +106,23 @@ runs:
       #   WOPEE_COLLECT_PAGE_CONTENT: "true"
       #   BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
       #   BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
-      env:
-        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      # NOTE: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD was removed here deliberately. It only
+      # gates the npm postinstall of the @playwright/browser-* helper packages (which
+      # project repos do not depend on) and has NO effect on `npx playwright install`
+      # — it never prevented the install below. When the project's Playwright version
+      # matches the image-baked browsers, the install is a marker-file no-op; when it
+      # differs, the project's browser build is downloaded into PLAYWRIGHT_BROWSERS_PATH
+      # (self-heal for projects created from older template versions).
+      # See runtime/docs/DEPENDENCY-MAP.md §5.
       shell: bash
       run: |
         npm install --prefer-offline --no-audit
-        npx playwright --version
+        PROJECT_PW="$(npx playwright --version | awk '{print $NF}')"
+        BAKED_PW="$(/opt/npm-global/bin/playwright --version 2>/dev/null | awk '{print $NF}' || echo unknown)"
+        echo "Project Playwright: ${PROJECT_PW} | image-baked: ${BAKED_PW}"
+        if [ "${PROJECT_PW}" != "${BAKED_PW}" ]; then
+          echo "::warning::Project resolves Playwright ${PROJECT_PW} but the runner image bakes browsers for ${BAKED_PW}. Browsers for ${PROJECT_PW} will be downloaded now (slower start, uses /tmp). Align the project's @playwright/test with the image to avoid this."
+        fi
         npx playwright install
         npx playwright install ffmpeg
         npm run test
