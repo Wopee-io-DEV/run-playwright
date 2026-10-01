@@ -185,6 +185,7 @@ runs:
         curl --request POST \
           --header 'content-type: application/json' \
           --header "api_key: ${WOPEE_API_KEY}" \
+          --header "x-api-key: ${WOPEE_API_KEY}" \
           --url "${WOPEE_API_URL}" \
           --data "$JSON_PAYLOAD"
 
