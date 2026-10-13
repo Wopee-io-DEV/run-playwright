@@ -4,9 +4,41 @@ branding:
   icon: "fast-forward"
   color: "purple"
 
+inputs:
+  project-uuid:
+    description: "Wopee.io project UUID, usually vars.WOPEE_PROJECT_UUID (set by Commander when it creates the repo)"
+    required: false
+    default: ""
+  project-url:
+    description: "App URL the tests open, usually vars.WOPEE_PROJECT_URL"
+    required: false
+    default: ""
+  api-url:
+    description: "Wopee.io API URL, usually vars.WOPEE_API_URL"
+    required: false
+    default: ""
+
 runs:
   using: "composite"
   steps:
+    - name: Load the repository's project settings → $GITHUB_ENV
+      # Written first, so client_payload.env from a Commander dispatch overrides them.
+      shell: bash
+      env:
+        INPUT_PROJECT_UUID: ${{ inputs.project-uuid }}
+        INPUT_PROJECT_URL: ${{ inputs.project-url }}
+        INPUT_API_URL: ${{ inputs.api-url }}
+      run: |
+        set_env() {
+          if [ -n "$2" ]; then
+            echo "$1=$2" >> "$GITHUB_ENV"
+            echo "$1=$2"
+          fi
+        }
+        set_env WOPEE_PROJECT_UUID "$INPUT_PROJECT_UUID"
+        set_env WOPEE_PROJECT_URL "$INPUT_PROJECT_URL"
+        set_env WOPEE_API_URL "$INPUT_API_URL"
+
     - uses: actions/checkout@v6
 
     - name: Set default values for environment variables
@@ -14,18 +46,6 @@ runs:
       run: |
         echo "WOPEE_SCREENSHOT_VALIDATION_ENABLED=${WOPEE_SCREENSHOT_VALIDATION_ENABLED:-true}" >> $GITHUB_ENV
         echo "WOPEE_COLLECT_PAGE_CONTENT=${WOPEE_COLLECT_PAGE_CONTENT:-true}" >> $GITHUB_ENV
-
-    - name: Load .github/workflows/.env → $GITHUB_ENV
-      # Loaded before the dispatch payload, so values sent by Commander win.
-      shell: bash
-      run: |
-        if [ -f .github/workflows/.env ]; then
-          # Valid KEY=VALUE lines only; unfilled template placeholders like {wopeeProjectUuid} are skipped.
-          grep -vE '^(#|$)' .github/workflows/.env | \
-            grep -E '^[A-Za-z_][A-Za-z0-9_]*=' | \
-            grep -vE '=\{[A-Za-z]+\}$' \
-            >> "$GITHUB_ENV" || true
-        fi
 
     - name: Load client_payload.env → $GITHUB_ENV
       if: github.event.client_payload.env
@@ -40,6 +60,16 @@ runs:
               else "\(.key)=\(.value)"
             end
         ' "$GITHUB_EVENT_PATH" >> "$GITHUB_ENV"
+
+    - name: Load .github/workflows/.env → $GITHUB_ENV
+      shell: bash
+      run: |
+        if [ -f .github/workflows/.env ]; then
+          # Extract valid KEY=VALUE lines; if none are found, skip without failing the step
+          grep -vE '^(#|$)' .github/workflows/.env | \
+            grep -E '^[A-Za-z_][A-Za-z0-9_]*=' \
+            >> "$GITHUB_ENV" || true
+        fi
 
     - name: Receive code
       if: github.event_name == 'repository_dispatch' && github.event.client_payload.code != null
@@ -97,7 +127,7 @@ runs:
       shell: bash
       run: |
         if [ -z "${WOPEE_PROJECT_UUID:-}" ]; then
-          echo "::error title=WOPEE_PROJECT_UUID is not set::Add WOPEE_PROJECT_UUID (and WOPEE_API_URL, WOPEE_PROJECT_URL) as uncommented KEY=value lines to .github/workflows/.env. Commander › More › Settings › API Keys shows the values."
+          echo "::error title=WOPEE_PROJECT_UUID is not set::The repository variable WOPEE_PROJECT_UUID is missing (Settings › Secrets and variables › Actions › Variables). Commander sets it when it creates the repo; tests.yml passes it to this action as the project-uuid input."
           exit 1
         fi
 
