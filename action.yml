@@ -15,6 +15,18 @@ runs:
         echo "WOPEE_SCREENSHOT_VALIDATION_ENABLED=${WOPEE_SCREENSHOT_VALIDATION_ENABLED:-true}" >> $GITHUB_ENV
         echo "WOPEE_COLLECT_PAGE_CONTENT=${WOPEE_COLLECT_PAGE_CONTENT:-true}" >> $GITHUB_ENV
 
+    - name: Load .github/workflows/.env → $GITHUB_ENV
+      # Loaded before the dispatch payload, so values sent by Commander win.
+      shell: bash
+      run: |
+        if [ -f .github/workflows/.env ]; then
+          # Valid KEY=VALUE lines only; unfilled template placeholders like {wopeeProjectUuid} are skipped.
+          grep -vE '^(#|$)' .github/workflows/.env | \
+            grep -E '^[A-Za-z_][A-Za-z0-9_]*=' | \
+            grep -vE '=\{[A-Za-z]+\}$' \
+            >> "$GITHUB_ENV" || true
+        fi
+
     - name: Load client_payload.env → $GITHUB_ENV
       if: github.event.client_payload.env
       shell: bash
@@ -28,16 +40,6 @@ runs:
               else "\(.key)=\(.value)"
             end
         ' "$GITHUB_EVENT_PATH" >> "$GITHUB_ENV"
-
-    - name: Load .github/workflows/.env → $GITHUB_ENV
-      shell: bash
-      run: |
-        if [ -f .github/workflows/.env ]; then
-          # Extract valid KEY=VALUE lines; if none are found, skip without failing the step
-          grep -vE '^(#|$)' .github/workflows/.env | \
-            grep -E '^[A-Za-z_][A-Za-z0-9_]*=' \
-            >> "$GITHUB_ENV" || true
-        fi
 
     - name: Receive code
       if: github.event_name == 'repository_dispatch' && github.event.client_payload.code != null
@@ -86,9 +88,18 @@ runs:
         echo "TESTING__PASSWORD=${{ github.event.client_payload.suiteAnalysisConfig.password }}" >> $GITHUB_ENV
 
     - name: Generate WOPEE_SUITE_NAME if not set
-      if: ${{ env.WOPEE_SUITE_NAME == '' }}
+      # Manual runs keep the suite name the tests choose.
+      if: github.event_name == 'repository_dispatch' && env.WOPEE_SUITE_NAME == ''
       shell: bash
       run: echo "WOPEE_SUITE_NAME=Testing-$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+
+    - name: Check project settings
+      shell: bash
+      run: |
+        if [ -z "${WOPEE_PROJECT_UUID:-}" ]; then
+          echo "::error title=WOPEE_PROJECT_UUID is not set::Add WOPEE_PROJECT_UUID (and WOPEE_API_URL, WOPEE_PROJECT_URL) as uncommented KEY=value lines to .github/workflows/.env. Commander › More › Settings › API Keys shows the values."
+          exit 1
+        fi
 
     - name: Run tests
       # env:
@@ -198,3 +209,4 @@ runs:
           test-results
           playwright-report
         retention-days: 1
+        if-no-files-found: ignore
