@@ -19,6 +19,18 @@ runs:
       if: github.event.client_payload.env
       shell: bash
       run: |
+        # Mask secret-looking values BEFORE they enter $GITHUB_ENV: from there every later
+        # step prints them in its `env:` header. Commander project variables such as
+        # KERBEROS_PASSWORD or BASIC_AUTH_PASSWORD arrive here as plain strings; only the
+        # repo secret WOPEE_API_KEY was masked by GitHub. Multi-line values line by line.
+        jq -r '
+          .client_payload.env
+          | to_entries[]
+          | select(.value != null)
+          | select(.key | ascii_upcase | test("PASS|PWD|SECRET|TOKEN|CREDENTIAL|PRIVATE|KEYTAB|_KEY$"))
+          | (.value | tostring | split("\n")[] | select(length > 0))
+          | "::add-mask::\(.)"
+        ' "$GITHUB_EVENT_PATH"
         jq -r '
           .client_payload.env
           | to_entries[]
@@ -34,10 +46,50 @@ runs:
       run: |
         if [ -f .github/workflows/.env ]; then
           # Extract valid KEY=VALUE lines; if none are found, skip without failing the step
-          grep -vE '^(#|$)' .github/workflows/.env | \
-            grep -E '^[A-Za-z_][A-Za-z0-9_]*=' \
-            >> "$GITHUB_ENV" || true
+          LINES="$(grep -vE '^(#|$)' .github/workflows/.env | grep -E '^[A-Za-z_][A-Za-z0-9_]*=' || true)"
+          # Same masking as for client_payload.env, before the values reach $GITHUB_ENV.
+          while IFS= read -r line; do
+            key="${line%%=*}"; value="${line#*=}"
+            if [ -n "$value" ] && [[ "${key^^}" =~ (PASS|PWD|SECRET|TOKEN|CREDENTIAL|PRIVATE|KEYTAB|_KEY$) ]]; then
+              echo "::add-mask::${value}"
+            fi
+          done <<< "$LINES"
+          [ -z "$LINES" ] || printf '%s\n' "$LINES" >> "$GITHUB_ENV"
         fi
+
+    # Windows SSO (backlog#4738). An app whose identity provider answers only
+    # `401 Negotiate` needs a Kerberos ticket before the tests' browser starts: on Linux
+    # Chromium never turns a name and password into one. The account comes from
+    # Commander's variables: KERBEROS_PRINCIPAL/KERBEROS_PASSWORD (KERBEROS_SSO=off turns
+    # it off). This job runs the whole Playwright project in one browser process, so it
+    # signs in once: a per-test KERBEROS_ACCOUNTS map can only apply its `*` entry here
+    # (per-test accounts work in agent runs, one test per job). The runtime image's
+    # wopee-kerberos does one kinit (no retry: parallel runs would lock the account) and
+    # hands KRB5_CONFIG, KRB5CCNAME, the --auth-server-allowlist switch (in
+    # WOPEE_BROWSER_ARGS) and every KERBEROS_PASSWORD* blanked to the test step.
+    # Unset: skipped.
+    - name: Kerberos sign-in
+      if: env.KERBEROS_PRINCIPAL != '' || env.KERBEROS_ACCOUNTS != ''
+      shell: bash
+      run: |
+        if ! command -v wopee-kerberos >/dev/null 2>&1; then
+          echo "::error::Kerberos sign-in is configured (KERBEROS_*), but this runner image has no wopee-kerberos — it needs a newer runtime image."
+          exit 1
+        fi
+        # The switch reaches the browser only through the project's playwright.config.ts
+        # (template#46 and later read WOPEE_BROWSER_ARGS); an older config never passes it.
+        if ! grep -qs WOPEE_BROWSER_ARGS playwright.config.ts playwright.config.js playwright.config.mjs; then
+          echo "::warning::playwright.config does not read WOPEE_BROWSER_ARGS, so Chromium will not answer the Negotiate challenge. Add the WOPEE_BROWSER_ARGS launch args from the current playwright-template."
+        fi
+        rc=0
+        OUT="$(wopee-kerberos login)" || rc=$?
+        if [ "$rc" -ne 0 ]; then
+          echo "::error::Kerberos sign-in failed (wopee-kerberos exit ${rc}) — the reason is on the line above."
+          exit "$rc"
+        fi
+        [ -z "$OUT" ] || printf '%s\n' "$OUT" >> "$GITHUB_ENV"
+        active="$(printf '%s\n' "$OUT" | sed -n 's/^KERBEROS_ACTIVE_PRINCIPAL=//p')"
+        echo "Kerberos sign-in: ${active:-not used for this run}"
 
     - name: Receive code
       if: github.event_name == 'repository_dispatch' && github.event.client_payload.code != null
