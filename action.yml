@@ -31,13 +31,19 @@ runs:
           | (.value | tostring | split("\n")[] | select(length > 0))
           | "::add-mask::\(.)"
         ' "$GITHUB_EVENT_PATH"
-        jq -r '
+        # Ordinary names only, and none that steer the runner or the agent's connections. The
+        # delimiter is random so that no value can end its own entry.
+        DELIMITER="WOPEE_$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+        jq -r --arg delimiter "$DELIMITER" '
           .client_payload.env
           | to_entries[]
           | select(.value != null)
-          | if (.value | type=="string" and test("\n"))
-              then "\(.key)<<EOF\n\(.value)\nEOF"
-              else "\(.key)=\(.value)"
+          | select(.key | test("^[A-Za-z_][A-Za-z0-9_]*$"))
+          | select(.key | ascii_upcase | test("^(PATH|HOME|BASH_ENV|ENV|HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY|WOPEE_API_KEY|WOPEE_AGENT_WORK_DIR|WOPEE_AGENT_REPORT|WOPEE_DIAG_WEBHOOK_URL|WOPEE_CDP_ENDPOINT|WOPEE_CHROME_CDP_URL|AGENT_KEY|BROWSER_WSS_ENDPOINT)$|^(GITHUB|RUNNER|ACTIONS|NODE|LD|DYLD|NPM_CONFIG|SSL|CURL|GIT|LANGFUSE|UPSTREAM)_|^AGENT_.*(URL|ENDPOINT|KEY|SECRET|TOKEN|PROVIDER|CLIENT|PROJECT|LOCATION|RESOURCE)") | not)
+          | (.value | tostring) as $value
+          | if ($value | test("[\r\n]"))
+              then "\(.key)<<\($delimiter)\n\($value)\n\($delimiter)"
+              else "\(.key)=\($value)"
             end
         ' "$GITHUB_EVENT_PATH" >> "$GITHUB_ENV"
 
@@ -96,7 +102,7 @@ runs:
       shell: bash
       run: |
         rm -rf tests/*
-        echo "${{ github.event.client_payload.code }}" | base64 --decode > tests/code.spec.ts
+        jq -r '.client_payload.code' "$GITHUB_EVENT_PATH" | base64 --decode > tests/code.spec.ts
 
     - name: Set suite name if provided
       # The dispatch payload carries suite.name (see the assignment below and run-agent);
@@ -105,37 +111,50 @@ runs:
       if: github.event_name == 'repository_dispatch' && github.event.client_payload.suite.name != null
       shell: bash
       run: |
-        echo 'WOPEE_SUITE_NAME=${{ github.event.client_payload.suite.name }}' >> $GITHUB_ENV
+        VALUE="$(jq -r '.client_payload.suite.name' "$GITHUB_EVENT_PATH")"
+        DELIMITER="WOPEE_$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+        printf 'WOPEE_SUITE_NAME<<%s\n%s\n%s\n' "$DELIMITER" "$VALUE" "$DELIMITER" >> "$GITHUB_ENV"
 
     - name: Set suite uuid if provided
       if: github.event_name == 'repository_dispatch' && github.event.client_payload.suite.uuid != null
       shell: bash
       run: |
-        echo 'WOPEE_SUITE_UUID=${{ github.event.client_payload.suite.uuid }}' >> $GITHUB_ENV
+        VALUE="$(jq -r '.client_payload.suite.uuid' "$GITHUB_EVENT_PATH")"
+        DELIMITER="WOPEE_$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+        printf 'WOPEE_SUITE_UUID<<%s\n%s\n%s\n' "$DELIMITER" "$VALUE" "$DELIMITER" >> "$GITHUB_ENV"
 
     - name: Set test case id if provided
       if: github.event_name == 'repository_dispatch' && github.event.client_payload.testCase.testCaseId != null
       shell: bash
       run: |
-        echo "WOPEE_TEST_CASE_ID=${{ github.event.client_payload.testCase.testCaseId }}" >> $GITHUB_ENV
+        VALUE="$(jq -r '.client_payload.testCase.testCaseId' "$GITHUB_EVENT_PATH")"
+        DELIMITER="WOPEE_$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+        printf 'WOPEE_TEST_CASE_ID<<%s\n%s\n%s\n' "$DELIMITER" "$VALUE" "$DELIMITER" >> "$GITHUB_ENV"
 
     - name: Set user story id if provided
       if: github.event_name == 'repository_dispatch' && github.event.client_payload.testCase.userStoryId != null
       shell: bash
       run: |
-        echo "WOPEE_USER_STORY_ID=${{ github.event.client_payload.testCase.userStoryId }}" >> $GITHUB_ENV
+        VALUE="$(jq -r '.client_payload.testCase.userStoryId' "$GITHUB_EVENT_PATH")"
+        DELIMITER="WOPEE_$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+        printf 'WOPEE_USER_STORY_ID<<%s\n%s\n%s\n' "$DELIMITER" "$VALUE" "$DELIMITER" >> "$GITHUB_ENV"
 
     - name: Set TESTING_USERNAME
       if: github.event.client_payload.suiteAnalysisConfig != null && github.event.client_payload.suiteAnalysisConfig.username != null
       shell: bash
       run: |
-        echo "TESTING_USERNAME=${{ github.event.client_payload.suiteAnalysisConfig.username }}" >> $GITHUB_ENV
+        VALUE="$(jq -r '.client_payload.suiteAnalysisConfig.username' "$GITHUB_EVENT_PATH")"
+        DELIMITER="WOPEE_$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+        printf 'TESTING_USERNAME<<%s\n%s\n%s\n' "$DELIMITER" "$VALUE" "$DELIMITER" >> "$GITHUB_ENV"
 
     - name: Set TESTING__PASSWORD
       if: github.event.client_payload.suiteAnalysisConfig != null && github.event.client_payload.suiteAnalysisConfig.password != null
       shell: bash
       run: |
-        echo "TESTING__PASSWORD=${{ github.event.client_payload.suiteAnalysisConfig.password }}" >> $GITHUB_ENV
+        VALUE="$(jq -r '.client_payload.suiteAnalysisConfig.password' "$GITHUB_EVENT_PATH")"
+        while IFS= read -r line; do [ -z "$line" ] || echo "::add-mask::$line"; done <<< "$VALUE"
+        DELIMITER="WOPEE_$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+        printf 'TESTING__PASSWORD<<%s\n%s\n%s\n' "$DELIMITER" "$VALUE" "$DELIMITER" >> "$GITHUB_ENV"
 
     - name: Generate WOPEE_SUITE_NAME if not set
       if: ${{ env.WOPEE_SUITE_NAME == '' }}
@@ -181,15 +200,17 @@ runs:
 
     - name: Confirm end of run
       if: always()
+      env:
+        JOB_STATUS: ${{ job.status }}
       shell: bash
       run: |
 
         ERROR_FLAG=false
-        if [ "${{ job.status }}" = "failure" ]; then
+        if [ "$JOB_STATUS" = "failure" ]; then
           ERROR_FLAG=true
         fi
 
-        if [ "${{ github.event.action }}" = "code" ]; then
+        if [ "$(jq -r '.action // empty' "$GITHUB_EVENT_PATH")" = "code" ]; then
 
           IDENTIFIER=""
           if [ -n "${WOPEE_USER_STORY_ID:-}" ] && [ -n "${WOPEE_TEST_CASE_ID:-}" ]; then
